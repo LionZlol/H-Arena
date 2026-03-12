@@ -85,7 +85,7 @@ const O_FIGHTERS = {
     radius: 22,
     maxHP: 99,
     label: "H Bucket",
-    description: "A ball with a bucket. It leaves blue puddles. Enemies running into puddles increases future size and hits before disappearing.",
+    description: "A ball with a bucket. Enemies running into puddles that it leaves increases size and hits before puddle disappears.",
   
     onInit(ball) {
       ball.angle = 0;
@@ -324,6 +324,132 @@ const O_FIGHTERS = {
         ctx.restore();
       }
       setHPExtra(ball, `🥏 speed: ${ball.fBaseSpeed.toFixed(1)} dmg: ${ball.damage.toFixed(1)}`);
+    }
+  },
+
+  "H Detonator": {
+    color: "#ff8844",
+    radius: 22,
+    maxHP: 99,
+    label: "H Detonator",
+    description: "A ball that plants a mine. The detonation radius and damage increases with each mine hit.",
+
+    onInit(ball) {
+      ball.mineActive = false;
+      ball.exploding = false;
+      ball.mX = 0;
+      ball.mY = 0;
+      ball.mineTimer = 0;
+      ball.explodeTimer = 0;
+      ball.mRadius = 14;       // visual size of the bomb
+      ball.explodeRadius = 40; // explosion hitbox radius
+      ball.damage = 3;
+      ball.hitCooldowns = new Map();
+    },
+
+    onUpdate(ball, dt, arena, balls) {
+      // ── State 1: Nothing active → plant a new mine ──
+      if (!ball.mineActive && !ball.exploding) {
+        ball.mX = ball.x;
+        ball.mY = ball.y;
+        ball.mineActive = true;
+        ball.mineTimer = 0;
+        ball.hitCooldowns.clear();
+      }
+
+      // ── State 2: Mine is ticking ──
+      if (ball.mineActive) {
+        ball.mineTimer += dt;
+        if (ball.mineTimer >= 2) {
+          ball.mineActive = false;
+          ball.exploding = true;
+          ball.explodeTimer = 0;
+        }
+      }
+
+      // ── State 3: Explosion active ──
+      if (ball.exploding) {
+        ball.explodeTimer += dt;
+
+        for (const other of balls) {
+          if (other === ball || other.dead) continue;
+          if (ballCheck(ball, other)) continue;
+
+          const cd = ball.hitCooldowns.get(other) ?? 0;
+          if (cd > 0) {
+            ball.hitCooldowns.set(other, cd - dt);
+            continue;
+          }
+
+          const dx = other.x - ball.mX;
+          const dy = other.y - ball.mY;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+
+          if (dist < ball.explodeRadius + other.radius) {
+            other.hp = Math.max(0, other.hp - ball.damage);
+            spawnText(other.x, other.y - 26, `-${Math.round(ball.damage)}`, "#ff8844");
+            ball.hitCooldowns.set(other, 0.5); // once per explosion per target
+
+            // Scale up on hit
+            ball.damage += 1;
+            ball.explodeRadius += 5;
+          }
+        }
+
+        if (ball.explodeTimer >= 0.5) {
+          ball.exploding = false;
+          // → loops back to State 1 next frame
+        }
+      }
+    },
+
+    onDraw(ctx, ball) {
+      // ── Draw mine ──
+      if (ball.mineActive) {
+        const pulse = 0.5 + 0.5 * Math.sin(ball.mineTimer * Math.PI * 4); // blink faster as it ticks
+
+        ctx.save();
+        ctx.shadowColor = `rgba(255, 80, 80, ${pulse})`;
+        ctx.shadowBlur = 10 + pulse * 12;
+
+        // Body
+        ctx.beginPath();
+        ctx.arc(ball.mX, ball.mY, ball.mRadius, 0, Math.PI * 2);
+        ctx.fillStyle = "#111";
+        ctx.fill();
+        ctx.strokeStyle = "#fff";
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+
+        // Little fuse nub on top
+        ctx.beginPath();
+        ctx.arc(ball.mX, ball.mY - ball.mRadius, 3, 0, Math.PI * 2);
+        ctx.fillStyle = "#fff";
+        ctx.fill();
+
+        ctx.restore();
+      }
+
+      // ── Draw explosion ──
+      if (ball.exploding) {
+        const fade = 1 - (ball.explodeTimer / 0.5); // fades out over 0.5s
+
+        ctx.save();
+        ctx.shadowColor = "#ff6600";
+        ctx.shadowBlur = 30 * fade;
+
+        ctx.beginPath();
+        ctx.arc(ball.mX, ball.mY, ball.explodeRadius, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255, 120, 30, ${0.45 * fade})`;
+        ctx.fill();
+        ctx.strokeStyle = `rgba(255, 200, 80, ${fade})`;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+
+        ctx.restore();
+      }
+
+      setHPExtra(ball, `💣 dmg: ${ball.damage.toFixed(1)}  radius: ${ball.explodeRadius}`);
     }
   },
 
