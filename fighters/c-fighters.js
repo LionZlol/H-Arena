@@ -416,7 +416,7 @@ const C_FIGHTERS = {
         ctx.restore();
       }
 
-      setHPExtra(ball, `⚫ max speed: ${ball.maxSpeedSpy} damage: ${ball.currentDamage.toFixed(1)}`, "#ffffff");
+      setHPExtra(ball, `🕵️ max speed: ${ball.maxSpeedSpy} damage: ${ball.currentDamage.toFixed(1)}`, "#ffffff");
     }
   },
 };
